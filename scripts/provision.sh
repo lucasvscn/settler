@@ -208,4 +208,6 @@ service iptables save
 
 yum -y install libmemcached libmemcached-devel memcached redis beanstalkd
 chkconfig memcached on
+chkconfig redis on
 chkconfig beanstalkd on
+
