@@ -1,5 +1,4 @@
 yum -y clean all
-rm -rf /etc/yum.repos.d/{puppetlabs,epel}.repo
 
 # Remove traces of mac address from network configuration
 sed -i /HWADDR/d /etc/sysconfig/network-scripts/ifcfg-eth0
