@@ -71,7 +71,7 @@ alias g='git'
 complete -o default -o nospace -F _git g
 
 # prompt displays current branch
-PS1=\$PS1'\\e[33m\$(__git_ps1 "(%s) ")\\e[0m'
+PS1=\$PS1'\\[\\e[33m\\]\$(__git_ps1 "(%s) ")\\[\\e[0m\\]'
 EOT
 
 
