@@ -1,18 +1,4 @@
-#!/bin/bash
-
-# Install extra repositories
-
-yum -y install epel-release
-rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-7
-
-yum -y install https://centos7.iuscommunity.org/ius-release.rpm
-rpm --import /etc/pki/rpm-gpg/IUS-COMMUNITY-GPG-KEY
-
-# Install dev & utils
-
-yum -y install bash-completion git vim curl htop unzip rar \
-sqlite dos2unix gcc make python-pip poppler-utils man \
-kernel-devel-$(uname -r) kernel-headers-$(uname -r) dkms
+#!/usr/bin/env bash
 
 # Set my timezone
 
@@ -21,6 +7,26 @@ ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
 # Apache 2.4
 
 yum -y install httpd httpd-tools
+
+mkdir /etc/httpd/ssl
+
+echo "<VirtualHost *:80>
+    ServerName localhost
+    DocumentRoot "/var/www/html"
+
+    <Directory "/var/www/html">
+        AllowOverride all
+    </Directory>
+</VirtualHost>" | tee /etc/httpd/conf.d/0Default.conf
+
+echo "<?php phpinfo();" | tee /var/www/html/info.php
+
+sed -i 's/User apache/User vagrant/' /etc/httpd/conf/httpd.conf
+sed -i 's/Group apache/Group vagrant/' /etc/httpd/conf/httpd.conf
+
+sed -i 's/^/\#/' /etc/httpd/conf.d/welcome.conf
+
+mkdir -pv /etc/httpd/ssl
 
 systemctl enable httpd
 systemctl start httpd
@@ -42,6 +48,12 @@ php -r "unlink('composer-setup.php');"
 
 mv composer.phar /usr/local/bin/composer
 
+# Install Laravel Envoy & Installer
+
+sudo su vagrant <<'EOF'
+/usr/local/bin/composer global require "laravel/installer"
+EOF
+
 printf "\nPATH=\"$(sudo su - vagrant -c 'composer config -g home 2>/dev/null')/vendor/bin:\$PATH\"\n" | tee -a /home/vagrant/.bashrc
 
 # Set Some PHP CLI Settings
@@ -58,27 +70,61 @@ echo "xdebug.max_nesting_level = 512" >> /etc/php.d/20-xdebug.ini
 
 echo "<?php phpinfo();" | tee /var/www/html/info.php
 
-# MySQL 5.7
+# MySQL 5.6
 
-# rpm -ivh https://dev.mysql.com/get/mysql57-community-release-el7-9.noarch.rpm
-# yum -y install mysql-server
+rpm -ivh https://dev.mysql.com/get/mysql57-community-release-el7-9.noarch.rpm
 
-# systemctl enable mysqld
-# systemctl start mysqld
+yum-config-manager --disable mysql57-community
+yum-config-manager --enable mysql56-community
 
-# password=`grep 'temporary password' /var/log/mysqld.log | sed -e 's/^.*root@localhost: //'`
-# mysql --user="root" --password="$password" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'secret';"
-# mysql --user="root" --password="secret" -e "CREATE USER 'root'@'0.0.0.0' IDENTIFIED BY 'secret';"
-# mysql --user="root" --password="secret" -e "GRANT ALL ON *.* TO root@'0.0.0.0' IDENTIFIED BY 'secret' WITH GRANT OPTION;"
-# mysql --user="root" --password="secret" -e "GRANT ALL ON *.* TO 'root'@'0.0.0.0' IDENTIFIED BY 'secret' WITH GRANT OPTION;"
-# mysql --user="root" --password="secret" -e "GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY 'secret' WITH GRANT OPTION;"
-# mysql --user="root" --password="secret" -e "FLUSH PRIVILEGES;"
+yum -y install mysql-community-server
 
-# systemctl restart mysqld
+systemctl enable mysqld
+systemctl restart mysqld
+
+mysql --user="root" -e "CREATE USER 'root'@'0.0.0.0' IDENTIFIED BY 'secret';"
+mysql --user="root" -e "GRANT ALL ON *.* TO root@'0.0.0.0' IDENTIFIED BY 'secret' WITH GRANT OPTION;"
+mysql --user="root" -e "GRANT ALL ON *.* TO 'root'@'0.0.0.0' IDENTIFIED BY 'secret' WITH GRANT OPTION;"
+mysql --user="root" -e "GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY 'secret' WITH GRANT OPTION;"
+mysql --user="root" -e "FLUSH PRIVILEGES;"
+
+# phpMyAdmin
+
+yum -y install phpmyadmin
+
+sed -i '/Require ip/d' /etc/httpd/conf.d/phpMyAdmin.conf
+sed -i '/Allow from/d' /etc/httpd/conf.d/phpMyAdmin.conf
+sed -i '/RequireAny/d' /etc/httpd/conf.d/phpMyAdmin.conf
+sed -i 's/Deny from All/Allow from All/' /etc/httpd/conf.d/phpMyAdmin.conf
+sed -i '/# Apache 2.4/a Require all granted' /etc/httpd/conf.d/phpMyAdmin.conf
 
 # Caching & Queues
 
 yum -y install libmemcached libmemcached-devel memcached beanstalkd
+
+systemctl enable memcached
+systemctl start memcached
+
+systemctl enable beanstalkd
+systemctl start beanstalkd
+
+# # Memcached monitor
+# wget https://github.com/elijaa/phpmemcachedadmin/archive/1.3.0.tar.gz
+# tar xzf 1.3.0.tar.gz
+# mv phpmemcachedadmin-1.3.0 /var/www/html/phpmemcachedadmin
+# chmod -R 777 /var/www/html/phpmemcachedadmin/Config
+# chmod -R 777 /var/www/html/phpmemcachedadmin/Temp
+# rm -f 1.3.0.tar.gz
+
+# # Beanstalkd
+# curl -o phpbeanstalkadmin.zip -O https://codeload.github.com/mnapoli/phpBeanstalkdAdmin/zip/1.0.0
+# unzip phpbeanstalkadmin.zip
+# mv phpBeanstalkdAdmin-1.0.0 /var/www/html/phpbeanstalkdadmin
+# rm -rf phpbeanstalkadmin.zip
+
+# # OPcache Monitors
+# curl -o /var/www/html/opcache.php -O https://raw.githubusercontent.com/rlerdorf/opcache-status/master/opcache.php
+# curl -o /var/www/html/opcache-gui.php -O https://raw.githubusercontent.com/amnuts/opcache-gui/master/index.php
 
 # Cleaning up
 
